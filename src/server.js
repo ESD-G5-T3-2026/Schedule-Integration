@@ -199,12 +199,18 @@ export async function buildServer() {
       return reply.code(400).send({ error: msg });
     }
 
-    const { timefulUrl } = await requestTimefulUrl(TIMEFUL_API_URL, jsonBody, {
-      apiKey: TIMEFUL_API_KEY,
-      timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
-    });
-
-    return { timefulUrl };
+    try {
+      const { timefulUrl } = await requestTimefulUrl(TIMEFUL_API_URL, jsonBody, {
+        apiKey: TIMEFUL_API_KEY,
+        timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
+      });
+      return { timefulUrl };
+    } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      const status = err?.status && Number.isFinite(err.status) ? err.status : 502;
+      const replyStatus = status >= 400 && status < 500 ? 400 : status;
+      return reply.code(replyStatus).send({ error: err.message ?? String(e) });
+    }
   });
 
   return app;

@@ -43,7 +43,9 @@ export async function requestTimefulUrl(baseUrl, jsonBody, opts = {}) {
         typeof data === "object" && data && "message" in data
           ? String(data.message)
           : text.slice(0, 200);
-      throw new Error(`Timeful API ${res.status}: ${msg}`);
+      const err = new Error(`Timeful API ${res.status}: ${msg}`);
+      err.status = res.status;
+      throw err;
     }
 
     if (typeof data !== "object" || !data) {
