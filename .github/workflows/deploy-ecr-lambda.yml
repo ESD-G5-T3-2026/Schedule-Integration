@@ -1,0 +1,53 @@
+name: Deploy to ECR and Lambda
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  ECR_REGISTRY: 257394490504.dkr.ecr.ap-southeast-1.amazonaws.com
+  ECR_REPOSITORY: schedule-integration
+  LAMBDA_FUNCTION_NAME: schedule-integration-container
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::257394490504:role/github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push image
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+        run: |
+          docker build -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+
+      - name: Update Lambda function code
+        env:
+          IMAGE_URI: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ env.LAMBDA_FUNCTION_NAME }}" \
+            --image-uri "$IMAGE_URI"
+
+      - name: Wait for Lambda code update
+        run: |
+          aws lambda wait function-updated \
+            --function-name "${{ env.LAMBDA_FUNCTION_NAME }}"
+

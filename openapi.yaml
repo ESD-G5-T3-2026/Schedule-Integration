@@ -1,0 +1,334 @@
+openapi: 3.1.0
+info:
+  title: Schedule integration
+  description: |
+    POST /timeful-url → Timeful `POST /api/events` → `{ timefulUrl }`.
+
+    **Singapore (UTC+8):** optional `timezone` defaults to `Asia/Singapore`.
+
+    **Daily window:** `start` / `end` are **local 24h** in that zone. We send **`duration`** = window length in **hours**, **`timeIncrement`: 15**, and **omit** `hasSpecificTimes` / `times` (those are for discrete picked slots in Timeful’s UI, not a from–to range).
+
+    **`dates`:** each **`YYYY-MM-DD`** is turned into that calendar day at **`start`** in `timezone`, then UTC — one column per day, like Timeful’s own create form. Other ISO forms keep the previous normalization rules.
+
+    If **end ≤ start** on the clock, **end** is the **next calendar day** (overnight). **`0000` / `0000`** → 24h window.
+
+    **GET /timeful-response-count** — `timefulUrl` query (e.g. `https://timeful.app/e/7A9Ca`) → Timeful `GET /api/events/:id` → `numResponses` + `respondentCount`.
+
+    **POST /timeful-best-times** — JSON `{ timefulUrl, meetingDurationHours }` → ranked UTC windows for that length, plus **`largestFullGroupContiguous`** (longest stretch where everyone is free — matches Timeful’s darkest green even when the requested duration is longer).
+  version: 0.1.0
+externalDocs:
+  description: Timeful server createEvent (Go)
+  url: https://github.com/schej-it/timeful.app/blob/main/server/routes/events.go
+servers:
+  - url: /
+    description: Same host/port as this page (recommended for Try it out)
+  - url: http://localhost:6502
+    description: localhost:6502 (default PORT)
+  - url: http://127.0.0.1:6502
+    description: 127.0.0.1:6502 — use if you open /docs with 127.0.0.1
+tags:
+  - name: health
+    description: Liveness
+  - name: timeful
+    description: Create polls, counts, and best-time suggestions via Timeful’s API
+
+paths:
+  /timeful-best-times:
+    post:
+      tags: [timeful]
+      summary: Best meeting windows
+      description: |
+        Uses Timeful `GET /events/:id` + `GET /events/:id/responses` to score contiguous slot runs
+        of length `meetingDurationHours`, and reports the longest mutual block for everyone.
+        Blind and days-of-week polls are not supported.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [timefulUrl, meetingDurationHours]
+              properties:
+                timefulUrl:
+                  type: string
+                  minLength: 1
+                  example: https://timeful.app/e/7A9Ca
+                meetingDurationHours:
+                  type: number
+                  description: Hours (e.g. 1, 2, 2.5); must be in (0, 168]
+                  example: 1.5
+                maxResults:
+                  type: integer
+                  minimum: 1
+                  maximum: 200
+                  default: 40
+            example:
+              timefulUrl: https://timeful.app/e/7A9Ca
+              meetingDurationHours: 1.5
+      responses:
+        "200":
+          description: Ranked windows (UTC)
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - shortId
+                  - meetingDurationHours
+                  - timeIncrementMinutes
+                  - slotsNeeded
+                  - respondentsConsidered
+                  - hasFullGroupForRequestedDuration
+                  - largestFullGroupContiguous
+                  - windows
+                properties:
+                  shortId: { type: string }
+                  name: { type: string }
+                  meetingDurationHours: { type: number }
+                  timeIncrementMinutes: { type: number }
+                  slotsNeeded: { type: integer }
+                  respondentsConsidered: { type: integer }
+                  hasFullGroupForRequestedDuration:
+                    type: boolean
+                    description: >
+                      True only if some windows[] row has allAvailable for this meetingDurationHours;
+                      false if everyone only overlaps for a shorter span (see largestFullGroupContiguous).
+                  largestFullGroupContiguous:
+                    oneOf:
+                      - type: "null"
+                      - type: object
+                        required: [start, end, durationHours, slotCount]
+                        properties:
+                          start: { type: string, format: date-time }
+                          end: { type: string, format: date-time }
+                          durationHours: { type: number }
+                          slotCount: { type: integer }
+                  windows:
+                    type: array
+                    items:
+                      type: object
+                      required: [start, end, availableCount, allAvailable]
+                      properties:
+                        start: { type: string, format: date-time }
+                        end: { type: string, format: date-time }
+                        availableCount: { type: integer }
+                        allAvailable: { type: boolean }
+        "400":
+          description: Validation, days-only, or dow poll
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+        "403":
+          description: Blind availability
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+        "404":
+          description: Unknown event
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+        "502":
+          description: Timeful or network error
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+
+  /timeful-response-count:
+    get:
+      tags: [timeful]
+      summary: Poll response count
+      description: |
+        Proxies to Timeful `GET /api/events/:id` (default base `https://timeful.app/api`).
+        Query `timefulUrl` may be the full share link or a short id.
+      parameters:
+        - name: timefulUrl
+          in: query
+          required: true
+          description: Share URL (`…/e/{shortId}`), short id, or Mongo event id
+          schema:
+            type: string
+            minLength: 1
+          example: https://timeful.app/e/7A9Ca
+      responses:
+        "200":
+          description: Counts from Timeful
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [shortId, respondentCount]
+                properties:
+                  shortId:
+                    type: string
+                    example: 7A9Ca
+                  name:
+                    type: string
+                    example: Team practice
+                  numResponses:
+                    type: [integer, "null"]
+                    description: Omitted by Timeful for some blind / anonymous cases
+                    example: 0
+                  respondentCount:
+                    type: integer
+                    example: 0
+        "400":
+          description: Missing or unparsable timefulUrl
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+        "404":
+          description: Unknown event id
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+        "502":
+          description: Timeful error or network failure
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      description: Returns `{ ok: true }` if the process is listening.
+      responses:
+        "200":
+          description: Service is up
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+
+  /timeful-url:
+    post:
+      tags: [timeful]
+      summary: Create Timeful poll URL
+      description: |
+        Forwards `name`, `dates`, `type`, `duration` (hours), and `timeIncrement` (15) to Timeful — same model as their web “New event” flow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventName, dates, type, start, end]
+              properties:
+                eventName:
+                  type: string
+                  minLength: 1
+                  description: Poll title → Timeful `name`
+                  example: Team practice
+                start:
+                  type: string
+                  minLength: 1
+                  description: Local window start (24h) — `0800`, `8:00`, `08:00`
+                  example: "0800"
+                end:
+                  type: string
+                  minLength: 1
+                  description: Local window end — `2000`, `20:00`
+                  example: "2000"
+                timezone:
+                  type: string
+                  minLength: 1
+                  description: IANA zone for dates + start/end (default Asia/Singapore)
+                  example: Asia/Singapore
+                dates:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: string
+                    minLength: 1
+                    example: "2026-04-01"
+                  description: Poll days; first entry anchors start/end clock
+                type:
+                  type: string
+                  enum: [specific_dates, dow, group]
+                  example: specific_dates
+            examples:
+              singaporeBusinessHours:
+                summary: Singapore 08:00–20:00
+                value:
+                  eventName: Team practice
+                  timezone: Asia/Singapore
+                  type: specific_dates
+                  start: "0800"
+                  end: "2000"
+                  dates:
+                    - "2026-04-01"
+                    - "2026-04-02"
+              fullDay:
+                summary: Full 24h window (00:00–24:00)
+                value:
+                  eventName: All-day availability
+                  timezone: Asia/Singapore
+                  type: specific_dates
+                  start: "0000"
+                  end: "0000"
+                  dates:
+                    - "2026-04-01"
+      responses:
+        "200":
+          description: Shareable Timeful poll URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [timefulUrl]
+                properties:
+                  timefulUrl:
+                    type: string
+                    format: uri
+                    example: https://timeful.app/e/abc123
+        "400":
+          description: Validation or date/time parse error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                additionalProperties: true
+        "500":
+          description: Timeful API or network error
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
