@@ -6,7 +6,6 @@ import { getTimefulApiBase, TIMEFUL_DEFAULT_CREATE_URL } from "./timefulDefaults
 import { fetchTimefulEventJson, parseTimefulEventId, statsFromTimefulEventJson } from "./timefulEvent.js";
 import { fetchTimefulResponsesJson } from "./timefulResponses.js";
 import { findBestMeetingWindows, timeRangeForResponsesQuery } from "./bestMeeting.js";
-import { registerSwagger, schemas } from "./swagger.js";
 
 // Swagger/OpenAPI registration can be slow on cold start; disable it by default so `/health` works reliably.
 const ENABLE_SWAGGER = process.env.ENABLE_SWAGGER === "true";
@@ -42,12 +41,14 @@ export async function buildServer() {
   });
 
   if (ENABLE_SWAGGER) {
-    await registerSwagger(app);
+    // Swagger registration is opt-in; keep `/health` and other handlers fast.
+    const mod = await import("./swagger.js");
+    await mod.registerSwagger(app);
   }
 
-  app.get("/health", { schema: schemas.health }, async () => ({ ok: true }));
+  app.get("/health", async () => ({ ok: true }));
 
-  app.post("/timeful-best-times", { schema: schemas.timefulBestTimes }, async (req, reply) => {
+  app.post("/timeful-best-times", async (req, reply) => {
     const body = req.body;
     const rawUrl = body.timefulUrl;
     if (typeof rawUrl !== "string" || !rawUrl.trim()) {
@@ -153,7 +154,7 @@ export async function buildServer() {
     };
   });
 
-  app.get("/timeful-response-count", { schema: schemas.timefulResponseCount }, async (req, reply) => {
+  app.get("/timeful-response-count", async (req, reply) => {
     const q = req.query || {};
     const raw = q.timefulUrl;
     if (typeof raw !== "string" || !raw.trim()) {
@@ -189,7 +190,7 @@ export async function buildServer() {
     }
   });
 
-  app.post("/timeful-url", { schema: schemas.timefulUrl }, async (req, reply) => {
+  app.post("/timeful-url", async (req, reply) => {
     const body = req.body;
     let jsonBody;
     try {
