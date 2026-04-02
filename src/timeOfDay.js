@@ -1,5 +1,5 @@
 /** Parse `0800`, `8:00`, `08:00`, `8:00am` not supported — 24h only. */
-export function parseHm(s: string): { hour: number; minute: number } {
+export function parseHm(s) {
   const t = s.trim().replace(/\s/g, "");
   if (!t) {
     throw new Error("start/end must be non-empty");
@@ -15,11 +15,11 @@ export function parseHm(s: string): { hour: number; minute: number } {
     return validateHm(Number(m[1]), Number(m[2]), s);
   }
   throw new Error(
-    `Invalid time "${s}"; use HHmm (0800, 2000) or H:mm / HH:mm (8:00, 20:00), 24-hour`
+    `Invalid time "${s}"; use HHmm (0800, 2000) or H:mm / HH:mm (8:00, 20:00), 24-hour`,
   );
 }
 
-function validateHm(hour: number, minute: number, raw: string): { hour: number; minute: number } {
+function validateHm(hour, minute, raw) {
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || !Number.isInteger(minute)) {
     throw new Error(`Invalid time "${raw}" (hour 0–23, minute 0–59)`);
   }
@@ -27,7 +27,7 @@ function validateHm(hour: number, minute: number, raw: string): { hour: number; 
 }
 
 /** Length of the daily window in **hours** (float). If end ≤ start on the clock, end is next calendar day. */
-export function durationHoursFromStartEnd(startStr: string, endStr: string): number {
+export function durationHoursFromStartEnd(startStr, endStr) {
   const sh = parseHm(startStr);
   const eh = parseHm(endStr);
   let startNum = sh.hour + sh.minute / 60;
@@ -41,3 +41,4 @@ export function durationHoursFromStartEnd(startStr: string, endStr: string): num
   }
   return durationHours;
 }
+

@@ -3,7 +3,7 @@ import { DateTime } from "luxon";
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** True if string ends with Z or ±HH:MM offset. */
-function hasExplicitOffset(iso: string): boolean {
+function hasExplicitOffset(iso) {
   return /Z$/i.test(iso) || /[+-]\d{2}:\d{2}$/.test(iso);
 }
 
@@ -13,15 +13,12 @@ function hasExplicitOffset(iso: string): boolean {
  * - Datetime **with** `Z` or `±offset` → parsed as that instant, output UTC ISO.
  * - Datetime **without** zone → interpreted in `timezone` (wall time in SG, etc.).
  */
+
 /**
  * Like {@link normalizeDatesToUtcIso}, but each **`YYYY-MM-DD`** is anchored at **`start`** wall time in `timezone`
  * (same as Timeful’s “New event” flow: one column per day, grid runs `duration` hours from that instant).
  */
-export function normalizePollDatesWithWindowStart(
-  dates: string[],
-  timezone: string,
-  start: { hour: number; minute: number }
-): string[] {
+export function normalizePollDatesWithWindowStart(dates, timezone, start) {
   return dates.map((raw, i) => {
     const s = raw.trim();
     if (!s) {
@@ -38,14 +35,18 @@ export function normalizePollDatesWithWindowStart(
       if (!dt.isValid) {
         throw new Error(`dates[${i}] invalid calendar date "${s}" in ${timezone}: ${dt.invalidReason}`);
       }
-      return dt.toUTC().toISO()!;
+      const iso = dt.toUTC().toISO();
+      if (!iso) {
+        throw new Error(`dates[${i}] could not be converted to UTC ISO`);
+      }
+      return iso;
     }
 
-    return normalizeDatesToUtcIso([s], timezone)[0]!;
+    return normalizeDatesToUtcIso([s], timezone)[0];
   });
 }
 
-export function normalizeDatesToUtcIso(dates: string[], timezone: string): string[] {
+export function normalizeDatesToUtcIso(dates, timezone) {
   return dates.map((raw, i) => {
     const s = raw.trim();
     if (!s) {
@@ -57,7 +58,11 @@ export function normalizeDatesToUtcIso(dates: string[], timezone: string): strin
       if (!dt.isValid) {
         throw new Error(`dates[${i}] invalid calendar date "${s}" in ${timezone}: ${dt.invalidReason}`);
       }
-      return dt.toUTC().toISO()!;
+      const iso = dt.toUTC().toISO();
+      if (!iso) {
+        throw new Error(`dates[${i}] could not be converted to UTC ISO`);
+      }
+      return iso;
     }
 
     if (hasExplicitOffset(s)) {
@@ -65,13 +70,22 @@ export function normalizeDatesToUtcIso(dates: string[], timezone: string): strin
       if (!dt.isValid) {
         throw new Error(`dates[${i}] invalid ISO with offset "${s}": ${dt.invalidReason}`);
       }
-      return dt.toUTC().toISO()!;
+      const iso = dt.toUTC().toISO();
+      if (!iso) {
+        throw new Error(`dates[${i}] could not be converted to UTC ISO`);
+      }
+      return iso;
     }
 
     const dt = DateTime.fromISO(s, { zone: timezone });
     if (!dt.isValid) {
       throw new Error(`dates[${i}] invalid datetime "${s}" in ${timezone}: ${dt.invalidReason}`);
     }
-    return dt.toUTC().toISO()!;
+    const iso = dt.toUTC().toISO();
+    if (!iso) {
+      throw new Error(`dates[${i}] could not be converted to UTC ISO`);
+    }
+    return iso;
   });
 }
+

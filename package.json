@@ -4,10 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/main.js",
-    "dev": "tsx watch src/main.ts",
-    "smoke": "tsx scripts/smoke.mts"
+    "start": "node src/main.js",
+    "dev": "node --watch src/main.js",
+    "smoke": "node scripts/smoke.js"
   },
   "engines": {
     "node": ">=20"
@@ -19,11 +18,5 @@
     "@fastify/swagger-ui": "^5.2.5",
     "fastify": "^5.2.1",
     "luxon": "^3.7.2"
-  },
-  "devDependencies": {
-    "@types/luxon": "^3.7.1",
-    "@types/node": "^22.13.10",
-    "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
   }
 }

@@ -4,7 +4,7 @@
  */
 
 /** Extract short id from `https://timeful.app/e/7A9Ca` or accept `7A9Ca` / 24-char hex id. */
-export function parseTimefulEventId(input: string): string {
+export function parseTimefulEventId(input) {
   const s = input.trim();
   if (!s) {
     throw new Error("timefulUrl is empty");
@@ -20,23 +20,13 @@ export function parseTimefulEventId(input: string): string {
     return s;
   }
   throw new Error(
-    `Could not parse Timeful event id from "${s.slice(0, 96)}${s.length > 96 ? "…" : ""}"; use /e/{shortId} URL or short id`
+    `Could not parse Timeful event id from "${s.slice(0, 96)}${s.length > 96 ? "…" : ""}"; use /e/{shortId} URL or short id`,
   );
 }
 
-export type TimefulEventStats = {
-  shortId?: string;
-  name?: string;
-  /** From Timeful `numResponses` (may be omitted when blind availability hides it). */
-  numResponses: number | null;
-  /** `Object.keys(responses).length` when the payload includes `responses`. */
-  respondentCount: number;
-};
-
-export function statsFromTimefulEventJson(data: Record<string, unknown>): TimefulEventStats {
+export function statsFromTimefulEventJson(data) {
   const numRaw = data.numResponses;
-  const numResponses =
-    typeof numRaw === "number" && Number.isFinite(numRaw) ? numRaw : null;
+  const numResponses = typeof numRaw === "number" && Number.isFinite(numRaw) ? numRaw : null;
 
   const responses = data.responses;
   let respondentCount = 0;
@@ -52,18 +42,14 @@ export function statsFromTimefulEventJson(data: Record<string, unknown>): Timefu
   };
 }
 
-export async function fetchTimefulEventJson(
-  apiBase: string,
-  eventId: string,
-  opts: { apiKey?: string; timeoutMs?: number } = {}
-): Promise<Record<string, unknown>> {
+export async function fetchTimefulEventJson(apiBase, eventId, opts = {}) {
   const { apiKey, timeoutMs = 30_000 } = opts;
   const url = `${apiBase.replace(/\/$/, "")}/events/${encodeURIComponent(eventId)}`;
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const headers: Record<string, string> = {
+    const headers = {
       "user-agent": "schedule-integration/1.0",
       ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
     };
@@ -75,7 +61,7 @@ export async function fetchTimefulEventJson(
     });
 
     const text = await res.text();
-    let data: unknown;
+    let data;
     try {
       data = text ? JSON.parse(text) : {};
     } catch {
@@ -84,10 +70,8 @@ export async function fetchTimefulEventJson(
 
     if (!res.ok) {
       const msg =
-        typeof data === "object" && data && "error" in data
-          ? String((data as { error: unknown }).error)
-          : text.slice(0, 200);
-      const err = new Error(`Timeful API ${res.status}: ${msg}`) as Error & { status?: number };
+        typeof data === "object" && data && "error" in data ? String(data.error) : text.slice(0, 200);
+      const err = new Error(`Timeful API ${res.status}: ${msg}`);
       err.status = res.status;
       throw err;
     }
@@ -96,8 +80,9 @@ export async function fetchTimefulEventJson(
       throw new Error("Timeful API: empty or invalid JSON object");
     }
 
-    return data as Record<string, unknown>;
+    return data;
   } finally {
     clearTimeout(t);
   }
 }
+

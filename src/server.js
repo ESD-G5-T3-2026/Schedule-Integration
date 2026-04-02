@@ -1,24 +1,18 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { requestTimefulUrl } from "./timeful.js";
-import { toTimefulApiCreateBody, type TimefulUrlBody } from "./timefulOfficial.js";
+import { toTimefulApiCreateBody } from "./timefulOfficial.js";
 import { getTimefulApiBase, TIMEFUL_DEFAULT_CREATE_URL } from "./timefulDefaults.js";
-import {
-  fetchTimefulEventJson,
-  parseTimefulEventId,
-  statsFromTimefulEventJson,
-} from "./timefulEvent.js";
+import { fetchTimefulEventJson, parseTimefulEventId, statsFromTimefulEventJson } from "./timefulEvent.js";
 import { fetchTimefulResponsesJson } from "./timefulResponses.js";
-import {
-  findBestMeetingWindows,
-  timeRangeForResponsesQuery,
-} from "./bestMeeting.js";
+import { findBestMeetingWindows, timeRangeForResponsesQuery } from "./bestMeeting.js";
 import { registerSwagger, schemas } from "./swagger.js";
 
 /** Effective create URL; env override for self-hosted Timeful. */
 const TIMEFUL_API_URL = (process.env.TIMEFUL_API_URL ?? TIMEFUL_DEFAULT_CREATE_URL).replace(/\/$/, "");
 const TIMEFUL_API_KEY = process.env.TIMEFUL_API_KEY;
 const TIMEFUL_API_BASE = getTimefulApiBase();
+
 // Lambda timeout in your logs is ~3000ms. Keep our outbound fetch timeout under that
 // so the handler returns a 502 with a useful `{ error }` instead of timing out.
 const TIMEFUL_FETCH_TIMEOUT_MS = Number(process.env.TIMEFUL_FETCH_TIMEOUT_MS ?? 2500);
@@ -49,11 +43,7 @@ export async function buildServer() {
   app.get("/health", { schema: schemas.health }, async () => ({ ok: true }));
 
   app.post("/timeful-best-times", { schema: schemas.timefulBestTimes }, async (req, reply) => {
-    const body = req.body as {
-      timefulUrl?: string;
-      meetingDurationHours?: number;
-      maxResults?: number;
-    };
+    const body = req.body;
     const rawUrl = body.timefulUrl;
     if (typeof rawUrl !== "string" || !rawUrl.trim()) {
       return reply.code(400).send({ error: "timefulUrl is required" });
@@ -65,14 +55,11 @@ export async function buildServer() {
       });
     }
     const maxResults =
-      typeof body.maxResults === "number" &&
-      Number.isFinite(body.maxResults) &&
-      body.maxResults >= 1 &&
-      body.maxResults <= 200
+      typeof body.maxResults === "number" && Number.isFinite(body.maxResults) && body.maxResults >= 1 && body.maxResults <= 200
         ? Math.floor(body.maxResults)
         : 40;
 
-    let eventId: string;
+    let eventId;
     try {
       eventId = parseTimefulEventId(rawUrl);
     } catch (e) {
@@ -80,16 +67,16 @@ export async function buildServer() {
       return reply.code(400).send({ error: msg });
     }
 
-    let event: Record<string, unknown>;
+    let event;
     try {
       event = await fetchTimefulEventJson(TIMEFUL_API_BASE, eventId, {
         apiKey: TIMEFUL_API_KEY,
         timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
       });
     } catch (e) {
-      const err = e as Error & { status?: number };
-      const status = err.status === 404 ? 404 : 502;
-      return reply.code(status).send({ error: err.message ?? String(e) });
+      const err = e;
+      const status = err?.status === 404 ? 404 : 502;
+      return reply.code(status).send({ error: err?.message ?? String(e) });
     }
 
     if (event.daysOnly === true) {
@@ -110,8 +97,8 @@ export async function buildServer() {
       });
     }
 
-    let timeMin: Date;
-    let timeMax: Date;
+    let timeMin;
+    let timeMax;
     try {
       ({ timeMin, timeMax } = timeRangeForResponsesQuery(event));
     } catch (e) {
@@ -119,15 +106,15 @@ export async function buildServer() {
       return reply.code(400).send({ error: msg });
     }
 
-    let responsesMap: Record<string, unknown>;
+    let responsesMap;
     try {
       responsesMap = await fetchTimefulResponsesJson(TIMEFUL_API_BASE, eventId, timeMin, timeMax, {
         apiKey: TIMEFUL_API_KEY,
         timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
       });
     } catch (e) {
-      const err = e as Error & { status?: number };
-      return reply.code(502).send({ error: err.message ?? String(e) });
+      const err = e;
+      return reply.code(502).send({ error: err?.message ?? String(e) });
     }
 
     let result;
@@ -162,12 +149,13 @@ export async function buildServer() {
   });
 
   app.get("/timeful-response-count", { schema: schemas.timefulResponseCount }, async (req, reply) => {
-    const q = req.query as { timefulUrl?: string };
+    const q = req.query || {};
     const raw = q.timefulUrl;
     if (typeof raw !== "string" || !raw.trim()) {
       return reply.code(400).send({ error: "query parameter timefulUrl is required" });
     }
-    let eventId: string;
+
+    let eventId;
     try {
       eventId = parseTimefulEventId(raw);
     } catch (e) {
@@ -188,23 +176,24 @@ export async function buildServer() {
         respondentCount: stats.respondentCount,
       };
     } catch (e) {
-      const err = e as Error & { status?: number };
-      const status = err.status === 404 ? 404 : 502;
+      const err = e;
+      const status = err?.status === 404 ? 404 : 502;
       return reply.code(status).send({
-        error: err.message ?? String(e),
+        error: err?.message ?? String(e),
       });
     }
   });
 
   app.post("/timeful-url", { schema: schemas.timefulUrl }, async (req, reply) => {
-    const body = req.body as TimefulUrlBody;
-    let jsonBody: Record<string, unknown>;
+    const body = req.body;
+    let jsonBody;
     try {
       jsonBody = toTimefulApiCreateBody(body);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return reply.code(400).send({ error: msg });
     }
+
     const { timefulUrl } = await requestTimefulUrl(TIMEFUL_API_URL, jsonBody, {
       apiKey: TIMEFUL_API_KEY,
       timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
@@ -215,3 +204,4 @@ export async function buildServer() {
 
   return app;
 }
+

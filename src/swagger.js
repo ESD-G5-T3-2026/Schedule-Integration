@@ -1,4 +1,3 @@
-import type { FastifyInstance } from "fastify";
 import swagger from "@fastify/swagger";
 import swaggerUi from "@fastify/swagger-ui";
 
@@ -31,7 +30,7 @@ const INFO_DESCRIPTION = [
 /**
  * OpenAPI 3.1 — register before routes so paths appear in /docs.
  */
-export async function registerSwagger(app: FastifyInstance): Promise<void> {
+export async function registerSwagger(app) {
   await app.register(swagger, {
     openapi: {
       openapi: "3.1.0",
@@ -268,7 +267,7 @@ export const schemas = {
       "Scores only **`availability`** (not `if_needed`). Respondents with **empty** `availability` are excluded from **`respondentsConsidered`**.",
       "**`largestFullGroupContiguous`** — longest stretch where **every** considered respondent has **every** slot (same idea as Timeful’s darkest green). If people only overlap 1h but you ask for **1.5h**, **`windows`** may show `availableCount: 1` while this field still shows the **1h** everyone-shared band.",
       "**`hasFullGroupForRequestedDuration`** — `true` only if **some** `windows[]` row has `allAvailable: true` for **this** `meetingDurationHours` (not “any overlap”: e.g. 1.5h stays `false` if everyone only shares 1h). Compare **`largestFullGroupContiguous`**.",
-      "Sort: **`allAvailable`** first, then higher **`availableCount`**, then earlier **`start**`.",
+      "Sort: **`allAvailable`** first, then higher **`availableCount`**, then earlier **`start**.",
       "",
       "**400** — invalid body, **days-only** poll, or **`dow`** type. **403** — **blind** availability. **404** — unknown id. **502** — Timeful/network.",
     ].join("\n"),
@@ -388,3 +387,4 @@ export const schemas = {
     },
   },
 };
+

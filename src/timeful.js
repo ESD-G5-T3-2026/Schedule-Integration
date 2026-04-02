@@ -4,28 +4,20 @@
 
 import { TIMEFUL_DEFAULT_PUBLIC_BASE } from "./timefulDefaults.js";
 
-export type TimefulCreateResponse = {
-  timefulUrl: string;
-};
+const URL_KEYS = ["timefulUrl", "url", "link", "timefulURL"];
 
-const URL_KEYS = ["timefulUrl", "url", "link", "timefulURL"] as const;
-
-function publicPollUrlFromShortId(shortId: string): string {
+function publicPollUrlFromShortId(shortId) {
   const base = (process.env.TIMEFUL_PUBLIC_BASE_URL ?? TIMEFUL_DEFAULT_PUBLIC_BASE).replace(/\/$/, "");
   return `${base}/e/${shortId}`;
 }
 
-export async function requestTimefulUrl(
-  baseUrl: string,
-  jsonBody: Record<string, unknown>,
-  opts: { apiKey?: string; timeoutMs?: number } = {}
-): Promise<TimefulCreateResponse> {
+export async function requestTimefulUrl(baseUrl, jsonBody, opts = {}) {
   const { apiKey, timeoutMs = 30_000 } = opts;
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const headers: Record<string, string> = {
+    const headers = {
       "content-type": "application/json",
       "user-agent": "schedule-integration/1.0",
       ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
@@ -39,7 +31,7 @@ export async function requestTimefulUrl(
     });
 
     const text = await res.text();
-    let data: unknown;
+    let data;
     try {
       data = text ? JSON.parse(text) : {};
     } catch {
@@ -49,7 +41,7 @@ export async function requestTimefulUrl(
     if (!res.ok) {
       const msg =
         typeof data === "object" && data && "message" in data
-          ? String((data as { message: unknown }).message)
+          ? String(data.message)
           : text.slice(0, 200);
       throw new Error(`Timeful API ${res.status}: ${msg}`);
     }
@@ -58,7 +50,7 @@ export async function requestTimefulUrl(
       throw new Error("Timeful API: empty or invalid JSON object");
     }
 
-    const o = data as Record<string, unknown>;
+    const o = data;
     for (const key of URL_KEYS) {
       const v = o[key];
       if (typeof v === "string" && v.length > 0) {
@@ -72,9 +64,10 @@ export async function requestTimefulUrl(
     }
 
     throw new Error(
-      `Timeful API: response missing timefulUrl or shortId (got keys: ${Object.keys(o).join(", ")})`
+      `Timeful API: response missing timefulUrl or shortId (got keys: ${Object.keys(o).join(", ")})`,
     );
   } finally {
     clearTimeout(t);
   }
 }
+

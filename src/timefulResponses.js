@@ -2,13 +2,7 @@
  * Timeful `GET /api/events/:eventId/responses?timeMin=&timeMax=`
  */
 
-export async function fetchTimefulResponsesJson(
-  apiBase: string,
-  eventId: string,
-  timeMin: Date,
-  timeMax: Date,
-  opts: { apiKey?: string; timeoutMs?: number } = {}
-): Promise<Record<string, unknown>> {
+export async function fetchTimefulResponsesJson(apiBase, eventId, timeMin, timeMax, opts = {}) {
   const { apiKey, timeoutMs = 60_000 } = opts;
   const base = apiBase.replace(/\/$/, "");
   const q = new URLSearchParams({
@@ -20,7 +14,7 @@ export async function fetchTimefulResponsesJson(
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const headers: Record<string, string> = {
+    const headers = {
       "user-agent": "schedule-integration/1.0",
       ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}),
     };
@@ -32,7 +26,7 @@ export async function fetchTimefulResponsesJson(
     });
 
     const text = await res.text();
-    let data: unknown;
+    let data;
     try {
       data = text ? JSON.parse(text) : {};
     } catch {
@@ -41,10 +35,8 @@ export async function fetchTimefulResponsesJson(
 
     if (!res.ok) {
       const msg =
-        typeof data === "object" && data && "error" in data
-          ? String((data as { error: unknown }).error)
-          : text.slice(0, 200);
-      const err = new Error(`Timeful API ${res.status}: ${msg}`) as Error & { status?: number };
+        typeof data === "object" && data && "error" in data ? String(data.error) : text.slice(0, 200);
+      const err = new Error(`Timeful API ${res.status}: ${msg}`);
       err.status = res.status;
       throw err;
     }
@@ -53,8 +45,9 @@ export async function fetchTimefulResponsesJson(
       throw new Error("Timeful API: empty or invalid JSON object");
     }
 
-    return data as Record<string, unknown>;
+    return data;
   } finally {
     clearTimeout(t);
   }
 }
+

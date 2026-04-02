@@ -1,6 +1,6 @@
 const HOUR_MS = 60 * 60 * 1000;
 
-export function parseTimefulTimestampToMs(v: unknown): number | null {
+export function parseTimefulTimestampToMs(v) {
   if (v == null) {
     return null;
   }
@@ -11,8 +11,8 @@ export function parseTimefulTimestampToMs(v: unknown): number | null {
     const t = Date.parse(v);
     return Number.isNaN(t) ? null : t;
   }
-  if (typeof v === "object" && v && "$date" in (v as object)) {
-    const d = (v as { $date: unknown }).$date;
+  if (typeof v === "object" && v && "$date" in v) {
+    const d = v.$date;
     if (typeof d === "string") {
       const t = Date.parse(d);
       return Number.isNaN(t) ? null : t;
@@ -24,21 +24,19 @@ export function parseTimefulTimestampToMs(v: unknown): number | null {
   return null;
 }
 
-function asStringArray(x: unknown): unknown[] {
+function asStringArray(x) {
   return Array.isArray(x) ? x : [];
 }
 
 /** Build per-user Set of slot-start times (ms) from `availability` only. */
-export function availabilitySetsFromResponses(
-  responsesMap: Record<string, unknown>
-): Map<string, Set<number>> {
-  const out = new Map<string, Set<number>>();
+export function availabilitySetsFromResponses(responsesMap) {
+  const out = new Map();
   for (const [userId, raw] of Object.entries(responsesMap)) {
     if (typeof raw !== "object" || !raw) {
       continue;
     }
-    const avail = (raw as { availability?: unknown }).availability;
-    const set = new Set<number>();
+    const avail = raw.availability;
+    const set = new Set();
     for (const item of asStringArray(avail)) {
       const ms = parseTimefulTimestampToMs(item);
       if (ms != null) {
@@ -50,12 +48,13 @@ export function availabilitySetsFromResponses(
   return out;
 }
 
-export function timeRangeForResponsesQuery(event: Record<string, unknown>): { timeMin: Date; timeMax: Date } {
+export function timeRangeForResponsesQuery(event) {
   const dates = event.dates;
   if (!Array.isArray(dates) || dates.length === 0) {
     throw new Error("Event has no dates");
   }
-  const times: number[] = [];
+
+  const times = [];
   for (const d of dates) {
     const ms = Date.parse(String(d));
     if (!Number.isNaN(ms)) {
@@ -65,6 +64,7 @@ export function timeRangeForResponsesQuery(event: Record<string, unknown>): { ti
   if (times.length === 0) {
     throw new Error("Event dates could not be parsed");
   }
+
   const minT = Math.min(...times);
   const maxT = Math.max(...times);
   const durationH = Number(event.duration);
@@ -75,46 +75,15 @@ export function timeRangeForResponsesQuery(event: Record<string, unknown>): { ti
   return { timeMin, timeMax };
 }
 
-export type BestWindow = {
-  start: string;
-  end: string;
-  startMs: number;
-  endMs: number;
-  availableCount: number;
-  allAvailable: boolean;
-};
-
-/** Longest run of poll slots where every respondent has that slot (matches Timeful “everyone free” shading). */
-export type LargestFullGroupContiguous = {
-  start: string;
-  end: string;
-  durationHours: number;
-  slotCount: number;
-};
-
-export type BestMeetingResult = {
-  slotsNeeded: number;
-  timeIncrementMinutes: number;
-  respondentsConsidered: number;
-  windows: BestWindow[];
-  /** Longest contiguous mutual availability; can exceed `meetingDurationHours` or fall short. */
-  largestFullGroupContiguous: LargestFullGroupContiguous | null;
-};
-
 /**
  * Per poll-day column, longest chain of grid times where every set in `userSets` contains the slot.
  */
-export function computeLargestMutualContiguous(
-  userSets: Set<number>[],
-  dates: unknown[],
-  pollWindowMs: number,
-  incMs: number
-): LargestFullGroupContiguous | null {
+export function computeLargestMutualContiguous(userSets, dates, pollWindowMs, incMs) {
   if (userSets.length === 0) {
     return null;
   }
 
-  let best: { startMs: number; slotCount: number } | null = null;
+  let best = null;
 
   for (const d of dates) {
     const dayStart = Date.parse(String(d));
@@ -123,7 +92,7 @@ export function computeLargestMutualContiguous(
     }
     const dayEnd = dayStart + pollWindowMs;
 
-    const mutual: number[] = [];
+    const mutual = [];
     for (let t = dayStart; t < dayEnd; t += incMs) {
       if (userSets.every((s) => s.has(t))) {
         mutual.push(t);
@@ -168,12 +137,7 @@ export function computeLargestMutualContiguous(
  * Enumerate grid-aligned window starts (same as Timeful columns: each `dates[i]` + k * increment).
  * A window needs `slotsNeeded` consecutive slot starts spaced by `incMs`.
  */
-export function findBestMeetingWindows(
-  event: Record<string, unknown>,
-  responsesMap: Record<string, unknown>,
-  meetingDurationHours: number,
-  opts: { maxResults?: number } = {}
-): BestMeetingResult {
+export function findBestMeetingWindows(event, responsesMap, meetingDurationHours, opts = {}) {
   const maxResults = opts.maxResults ?? 40;
   const dates = event.dates;
   if (!Array.isArray(dates) || dates.length === 0) {
@@ -184,8 +148,7 @@ export function findBestMeetingWindows(
   const incMs = (Number.isFinite(timeIncMin) && timeIncMin > 0 ? timeIncMin : 15) * 60 * 1000;
 
   const durationH = Number(event.duration);
-  const pollWindowMs =
-    Number.isFinite(durationH) && durationH > 0 ? durationH * HOUR_MS : 24 * HOUR_MS;
+  const pollWindowMs = Number.isFinite(durationH) && durationH > 0 ? durationH * HOUR_MS : 24 * HOUR_MS;
 
   const meetingMs = meetingDurationHours * HOUR_MS;
   if (meetingMs <= 0) {
@@ -201,7 +164,7 @@ export function findBestMeetingWindows(
   const usersWithSlots = [...sets.entries()].filter(([, s]) => s.size > 0).map(([id]) => id);
   const respondentsConsidered = usersWithSlots.length;
 
-  const windows: BestWindow[] = [];
+  const windows = [];
 
   if (respondentsConsidered === 0) {
     return {
@@ -213,13 +176,9 @@ export function findBestMeetingWindows(
     };
   }
 
-  const userSets = usersWithSlots.map((id) => sets.get(id)!);
-  const largestFullGroupContiguous = computeLargestMutualContiguous(
-    userSets,
-    dates,
-    pollWindowMs,
-    incMs
-  );
+  const userSets = usersWithSlots.map((id) => sets.get(id)).filter(Boolean);
+
+  const largestFullGroupContiguous = computeLargestMutualContiguous(userSets, dates, pollWindowMs, incMs);
 
   for (const d of dates) {
     const dayStart = Date.parse(String(d));
@@ -227,12 +186,13 @@ export function findBestMeetingWindows(
       continue;
     }
     const dayEnd = dayStart + pollWindowMs;
+
     if (dayEnd - dayStart < meetingMs - 1e-6) {
       continue;
     }
 
     for (let t = dayStart; t + meetingMs <= dayEnd + 1e-6; t += incMs) {
-      const required: number[] = [];
+      const required = [];
       for (let k = 0; k < slotsNeeded; k++) {
         required.push(t + k * incMs);
       }
@@ -271,8 +231,8 @@ export function findBestMeetingWindows(
     return a.startMs - b.startMs;
   });
 
-  const seen = new Set<string>();
-  const unique: BestWindow[] = [];
+  const seen = new Set();
+  const unique = [];
   for (const w of windows) {
     const key = `${w.startMs}|${w.endMs}`;
     if (seen.has(key)) {
@@ -293,3 +253,4 @@ export function findBestMeetingWindows(
     largestFullGroupContiguous,
   };
 }
+
