@@ -8,6 +8,9 @@ import { fetchTimefulResponsesJson } from "./timefulResponses.js";
 import { findBestMeetingWindows, timeRangeForResponsesQuery } from "./bestMeeting.js";
 import { registerSwagger, schemas } from "./swagger.js";
 
+// Swagger/OpenAPI registration can be slow on cold start; disable it by default so `/health` works reliably.
+const ENABLE_SWAGGER = process.env.ENABLE_SWAGGER === "true";
+
 /** Effective create URL; env override for self-hosted Timeful. */
 const TIMEFUL_API_URL = (process.env.TIMEFUL_API_URL ?? TIMEFUL_DEFAULT_CREATE_URL).replace(/\/$/, "");
 const TIMEFUL_API_KEY = process.env.TIMEFUL_API_KEY;
@@ -38,7 +41,9 @@ export async function buildServer() {
     allowedHeaders: ["Content-Type", "Authorization"],
   });
 
-  await registerSwagger(app);
+  if (ENABLE_SWAGGER) {
+    await registerSwagger(app);
+  }
 
   app.get("/health", { schema: schemas.health }, async () => ({ ok: true }));
 
