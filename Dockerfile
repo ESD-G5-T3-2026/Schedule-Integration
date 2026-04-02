@@ -24,8 +24,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/dist ./dist
 
-# CJS wrapper exporting Lambda handler
-COPY lambda.cjs ./lambda.cjs
+# Lambda handler wrapper exporting Lambda handler
+COPY lambda.js ./lambda.js
 
 # Lambda handler: <file>.<export>
 CMD ["lambda.handler"]

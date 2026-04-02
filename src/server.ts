@@ -19,6 +19,9 @@ import { registerSwagger, schemas } from "./swagger.js";
 const TIMEFUL_API_URL = (process.env.TIMEFUL_API_URL ?? TIMEFUL_DEFAULT_CREATE_URL).replace(/\/$/, "");
 const TIMEFUL_API_KEY = process.env.TIMEFUL_API_KEY;
 const TIMEFUL_API_BASE = getTimefulApiBase();
+// Lambda timeout in your logs is ~3000ms. Keep our outbound fetch timeout under that
+// so the handler returns a 502 with a useful `{ error }` instead of timing out.
+const TIMEFUL_FETCH_TIMEOUT_MS = Number(process.env.TIMEFUL_FETCH_TIMEOUT_MS ?? 2500);
 
 /**
  * POST body → Timeful POST /api/events → { timefulUrl }
@@ -81,6 +84,7 @@ export async function buildServer() {
     try {
       event = await fetchTimefulEventJson(TIMEFUL_API_BASE, eventId, {
         apiKey: TIMEFUL_API_KEY,
+        timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
       });
     } catch (e) {
       const err = e as Error & { status?: number };
@@ -119,6 +123,7 @@ export async function buildServer() {
     try {
       responsesMap = await fetchTimefulResponsesJson(TIMEFUL_API_BASE, eventId, timeMin, timeMax, {
         apiKey: TIMEFUL_API_KEY,
+        timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
       });
     } catch (e) {
       const err = e as Error & { status?: number };
@@ -173,6 +178,7 @@ export async function buildServer() {
     try {
       const json = await fetchTimefulEventJson(TIMEFUL_API_BASE, eventId, {
         apiKey: TIMEFUL_API_KEY,
+        timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
       });
       const stats = statsFromTimefulEventJson(json);
       return {
@@ -201,6 +207,7 @@ export async function buildServer() {
     }
     const { timefulUrl } = await requestTimefulUrl(TIMEFUL_API_URL, jsonBody, {
       apiKey: TIMEFUL_API_KEY,
+      timeoutMs: TIMEFUL_FETCH_TIMEOUT_MS,
     });
 
     return { timefulUrl };
