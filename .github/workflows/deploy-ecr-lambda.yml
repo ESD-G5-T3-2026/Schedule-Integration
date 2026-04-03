@@ -51,3 +51,16 @@ jobs:
           aws lambda wait function-updated \
             --function-name "${{ env.LAMBDA_FUNCTION_NAME }}"
 
+      # Default Lambda timeout is often 3s — outbound HTTPS + cold start will exceed that.
+      - name: Lambda timeout + memory (avoid 3s wall)
+        run: |
+          aws lambda update-function-configuration \
+            --function-name "${{ env.LAMBDA_FUNCTION_NAME }}" \
+            --timeout 30 \
+            --memory-size 512
+
+      - name: Wait for Lambda configuration update
+        run: |
+          aws lambda wait function-updated \
+            --function-name "${{ env.LAMBDA_FUNCTION_NAME }}"
+
